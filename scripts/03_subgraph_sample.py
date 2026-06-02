@@ -1,0 +1,58 @@
+"""Échantillonnage par sous-graphe ego — préalable au GNN.
+
+Remplace le sampling stratifié naïf de `01_sample_data.py` par un sampling
+qui **préserve la connexité** : pour chaque transaction frauduleuse, on
+récupère ses comptes impliqués et leurs voisins à K hops.
+
+Usage :
+    python scripts/03_subgraph_sample.py
+"""
+from __future__ import annotations
+
+import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src import config  # noqa: E402
+from src.pipeline.subgraph_sampling import (  # noqa: E402
+    connectivity_stats,
+    ego_subgraph_sample,
+    save_subgraph_sample,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("subgraph_sample")
+
+
+def main() -> None:
+    if not config.RAW_CSV.exists():
+        raise FileNotFoundError(f"CSV brut introuvable : {config.RAW_CSV}")
+
+    df = ego_subgraph_sample(
+        csv_path=config.RAW_CSV,
+        num_hops=config.EGO_NUM_HOPS,
+        target_size=config.EGO_TARGET_SIZE,
+        include_legit_background=config.EGO_INCLUDE_LEGIT_BACKGROUND,
+        random_seed=config.RANDOM_SEED,
+    )
+    save_subgraph_sample(df, out_path=config.SUBGRAPH_CSV)
+
+    stats = connectivity_stats(df)
+    logger.info("=" * 60)
+    logger.info("Statistiques de connexité du sous-graphe :")
+    logger.info("  Transactions   : %s", f"{stats['n_transactions']:,}")
+    logger.info("  Comptes uniques: %s", f"{stats['n_accounts']:,}")
+    logger.info("  Degré moyen    : %.2f", stats["avg_degree"])
+    logger.info("  Degré médian   : %.2f", stats["median_degree"])
+    logger.info("  Degré max      : %s", f"{stats['max_degree']:,}")
+    logger.info("  %% degré = 1   : %.2f %%", stats["pct_degree_one"])
+    logger.info("=" * 60)
+
+
+if __name__ == "__main__":
+    main()

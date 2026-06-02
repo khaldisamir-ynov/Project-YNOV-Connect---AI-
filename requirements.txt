@@ -1,0 +1,14 @@
+pandas>=2.2
+numpy>=1.26
+rdflib>=7.0
+tqdm>=4.66
+pyarrow>=15.0
+scikit-learn>=1.4
+matplotlib>=3.8
+seaborn>=0.13
+# Pour l'étape 4 (conversion vers PyTorch Geometric) — installer torch CPU séparément :
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.4
+torch_geometric>=2.5
+# Optionnel — expansion OWL-RL sur l'A-Box enrichie :
+#     pip install owlrl

@@ -1,0 +1,93 @@
+@prefix aml: <http://escience.datafactory.com/ontology/aml#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# --- Déclaration de l'Ontologie ---
+<http://escience.datafactory.com/ontology/aml> rdf:type owl:Ontology ;
+    rdfs:label "Ontologie AML pour la détection de fraude via GNN" ;
+    rdfs:comment "Schéma strict (T-Box) du réseau transactionnel." .
+
+# ==========================================
+# 1. LES CLASSES (Les types de nœuds)
+# ==========================================
+
+aml:Account rdf:type owl:Class ;
+    rdfs:label "Compte Bancaire" .
+
+aml:Bank rdf:type owl:Class ;
+    rdfs:label "Banque (Établissement)" .
+
+aml:Transaction rdf:type owl:Class ;
+    rdfs:label "Transaction Financière" .
+
+# ==========================================
+# 2. LES PROPRIÉTÉS D'OBJET (La topologie / Les arêtes)
+# ==========================================
+# C'est ici que l'on crée la "Douane" avec les notions de Domain et Range.
+
+aml:sends_via rdf:type owl:ObjectProperty ;
+    rdfs:label "Initie la transaction" ;
+    rdfs:domain aml:Account ;       # La flèche doit TOUJOURS partir d'un Compte
+    rdfs:range aml:Transaction .    # La flèche doit TOUJOURS pointer vers une Transaction
+
+aml:deposits_to rdf:type owl:ObjectProperty ;
+    rdfs:label "Dépose les fonds vers" ;
+    rdfs:domain aml:Transaction ;   # Part d'une Transaction
+    rdfs:range aml:Account .        # Pointe vers un Compte
+
+aml:hosted_by rdf:type owl:ObjectProperty ;
+    rdfs:label "Est hébergé par la banque" ;
+    rdfs:domain aml:Account ;       # Part d'un Compte
+    rdfs:range aml:Bank .           # Pointe vers une Banque
+
+# --- Relations inférées (A-Box enrichie, avant entraînement GNN) ---
+
+aml:transactedWith rdf:type owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "A déjà transigé avec" ;
+    rdfs:comment "Inféré : au moins une transaction entre deux comptes." ;
+    rdfs:domain aml:Account ;
+    rdfs:range aml:Account .
+
+aml:sameBankAs rdf:type owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "Partage la même banque" ;
+    rdfs:comment "Inféré : même hosted_by ET au moins une relation transactedWith." ;
+    rdfs:domain aml:Account ;
+    rdfs:range aml:Account .
+
+# ==========================================
+# 3. LES PROPRIÉTÉS DE DONNÉES (Les attributs pour le GNN)
+# ==========================================
+# On spécifie le type de donnée exact (entier, décimal, texte) pour sécuriser l'import.
+
+aml:amountPaid rdf:type owl:DatatypeProperty ;
+    rdfs:label "Montant payé" ;
+    rdfs:domain aml:Transaction ;
+    rdfs:range xsd:float .          # Force la valeur à être un nombre à virgule
+
+aml:paymentCurrency rdf:type owl:DatatypeProperty ;
+    rdfs:label "Devise du paiement" ;
+    rdfs:domain aml:Transaction ;
+    rdfs:range xsd:string .
+
+aml:paymentFormat rdf:type owl:DatatypeProperty ;
+    rdfs:label "Format (ex: Cheque, Carte)" ;
+    rdfs:domain aml:Transaction ;
+    rdfs:range xsd:string .
+
+aml:timestamp rdf:type owl:DatatypeProperty ;
+    rdfs:label "Date et heure" ;
+    rdfs:domain aml:Transaction ;
+    rdfs:range xsd:string .         # Laissé en string pour simplifier l'import initial
+
+aml:isLaundering rdf:type owl:DatatypeProperty ;
+    rdfs:label "Label Cible: Est une fraude" ;
+    rdfs:domain aml:Transaction ;
+    rdfs:range xsd:integer .        # 0 ou 1
+
+aml:bankCode rdf:type owl:DatatypeProperty ;
+    rdfs:label "Code banque" ;
+    rdfs:domain aml:Bank ;
+    rdfs:range xsd:string .
+
