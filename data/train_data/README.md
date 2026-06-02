@@ -1,26 +1,44 @@
-# Données — pipeline AML
+# Données d'entraînement — LI-Small
 
-Tous les chemins sont définis dans [`src/config.py`](../src/config.py).
+Jeu utilisé pour entraîner les GNN et produire les checkpoints de référence.
 
-| Dossier | Rôle | Versionné Git |
-|---------|------|---------------|
-| `csv/raw/` | CSV IBM AML brut (`LI-Small_Trans.csv`) | Non (`.gitignore`) |
-| `csv/cleaned/` | Échantillons et sous-graphe ego | Non |
-| `rdf/ontology_schema/` | T-Box (`aml.ttl`) | **Oui** |
-| `rdf/ontology_data/` | A-Box Turtle générées | Non |
-| `pyg/` | Tenseurs PyTorch Geometric (`.pt`) | Non |
-| `results/` | Checkpoints, métriques JSON, figures PNG | Non |
+| Dossier | Contenu |
+|---------|---------|
+| `csv/raw/` | `LI-Small_Trans.csv` |
+| `csv/cleaned/` | `LI-Small_Trans_subgraph.csv` (200k) |
+| `rdf/ontology_schema/` | T-Box `aml.ttl` (**partagée avec unknown**) |
+| `rdf/ontology_data/` | A-Box Turtle |
+| `pyg/` | `aml_hetero_graph.pt`, `aml_graph.pt` |
+| `results/` | `gnn_{hetero,sage,gat}_best.pt`, métriques JSON |
 
-## Fichiers produits par le pipeline
+### Sous-graphe ego (LI-Small, 01/06/2026)
 
-```
-csv/cleaned/LI-Small_Trans_sample.csv      ← 01_sample_data.py
-csv/cleaned/LI-Small_Trans_subgraph.csv    ← 03_subgraph_sample.py
-rdf/ontology_data/aml_data.ttl            ← 02_build_rdf.py
-rdf/ontology_data/aml_data_subgraph.ttl   ← 02b_build_rdf_subgraph.py
-rdf/ontology_data/aml_data_subgraph_enriched.ttl  ← 02c_enrich_rdf.py
-pyg/aml_hetero_graph.pt                   ← 04_build_pyg.py (défaut)
-pyg/aml_graph.pt                          ← 04_build_pyg.py --mode homo
-results/gnn_{hetero|sage|gat}_*           ← 05_train_gnn.py
-results/convergence_sage_vs_hetero.*      ← 06_compare_convergence.py
-```
+| Indicateur | Valeur |
+|------------|--------|
+| Transactions | 200 000 |
+| Fraudes | 3 565 (1,78 %) |
+| Comptes uniques | 121 082 |
+| Degré moyen / médian | 3,30 / 2,00 |
+| % degré = 1 | ~36 % |
+
+### Métriques test interne (LI-Small, split 15 %)
+
+| Modèle | PR-AUC | Recall | Precision | F1 |
+|--------|--------|--------|-----------|-----|
+| HeteroGNN | 0,254 | 94,8 % | 5,9 % | 0,112 |
+| GraphSAGE | 0,254 | 92,7 % | 6,0 % | 0,113 |
+| GAT | 0,047 | 62,5 % | 3,0 % | 0,056 |
+
+### Hold-out LI-Medium (généralisation, 02/06/2026)
+
+Checkpoints de ce dossier évalués sur `unknown_data/` **sans ré-entraînement** :
+
+| Modèle | PR-AUC hold-out | F1 |
+|--------|-----------------|-----|
+| HeteroGNN | **0,595** | **0,612** |
+| GraphSAGE | 0,229 | 0,228 |
+| GAT | 0,150 | 0,194 |
+
+Détail : [`../unknown_data/README.md`](../unknown_data/README.md), [`../../docs/pipeline_etl_entrainement_evaluation.md`](../../docs/pipeline_etl_entrainement_evaluation.md).
+
+Chemins actifs par défaut : `config.set_data_profile("train")`.

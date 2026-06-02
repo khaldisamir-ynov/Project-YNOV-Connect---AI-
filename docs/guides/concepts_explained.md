@@ -599,14 +599,53 @@ permet au GNN de "voir" la topologie qui l'entoure.
 3. **Récolte** : toutes les transactions entre comptes du sous-graphe.
 4. **Plafonnement** à `EGO_TARGET_SIZE` en gardant 100 % des fraudes.
 
-Résultat : densité multipliée par ~2 (degré moyen 1.5 → 3.30), tout en
-gardant l'échantillon manipulable.
+Résultat sur **LI-Small (train)** : densité multipliée par ~2 (degré moyen
+~1,5 → **3,30**), 200 000 transactions, **3 565** fraudes (1,78 %), 121 082
+comptes, ~36 % de degré 1.
+
+### Hold-out LI-Medium (02/06/2026)
+
+Même algorithme (`--data-profile unknown`, lecture **chunked** sur 31,3 M
+lignes) :
+
+| Indicateur | LI-Medium hold-out |
+|------------|-------------------|
+| Transactions finales | 200 000 |
+| Fraudes | 16 041 (8,02 %) |
+| Ego avant plafond | 12 126 651 tx |
+| Comptes | 216 008 |
+| Degré moyen / médian | 1,85 / 1,00 |
+| % degré = 1 | 62,72 % |
+
+Le hold-out est **plus frauduleux** mais **moins connecté** que le train :
+interpréter les métriques de généralisation avec prudence.
+
+### Test final — métriques GNN (02/06/2026)
+
+Évaluation **sans ré-entraînement** : checkpoints LI-Small → graphe LI-Medium (`07_eval_holdout.py`).
+
+| Modèle | PR-AUC | Recall | Precision | F1 |
+|--------|--------|--------|-----------|-----|
+| **HeteroGNN** | **0,595** | 0,699 | **0,544** | **0,612** |
+| GraphSAGE | 0,229 | 0,781 | 0,133 | 0,228 |
+| GAT | 0,150 | 0,643 | 0,114 | 0,194 |
+
+**Lecture** :
+
+- **PR-AUC** : qualité du *classement* (quelle transaction est plus suspecte qu’une autre) — prioritaire en déséquilibre extrême.
+- **Recall** : part des fraudes détectées au seuil choisi.
+- **Precision** : part des alertes qui sont de vraies fraudes.
+- HeteroGNN : bon compromis ; SAGE/GAT : recall élevé mais precision ~12 % → **sur-alerte**.
+
+Fichier source : `data/unknown_data/results/eval_holdout_metrics.json`.  
+Voir aussi [`pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md).
 
 ### Pourquoi pas K=2 ou K=3 ?
 
 À chaque saut supplémentaire, le nombre de transactions explose
 exponentiellement (effet "petit monde" du réseau financier). Sur ce
-dataset, K=1 collecte déjà 2,4 M transactions ; K=2 dépasserait
+dataset, K=1 collecte déjà 2,4 M transactions (Small) ou **12,1 M** (Medium) ;
+K=2 dépasserait
 probablement le dataset entier. On peut envisager K=2 plus tard avec un
 **neighborhood sampling** (par exemple `NeighborLoader` de PyG) qui
 échantillonne *à la volée* un sous-ensemble aléatoire de voisins lors

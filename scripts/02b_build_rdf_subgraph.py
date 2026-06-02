@@ -8,6 +8,7 @@ Usage :
 """
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd  # noqa: E402
 
 from src import config  # noqa: E402
+from src.data_profile import add_profile_arg  # noqa: E402
 from src.rdf.builder import build_graph, serialize_graph  # noqa: E402
 
 logging.basicConfig(
@@ -27,6 +29,11 @@ logger = logging.getLogger("build_rdf_subgraph")
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description="A-Box RDF sous-graphe.")
+    add_profile_arg(p)
+    args = p.parse_args()
+    config.set_data_profile(args.data_profile)
+
     if not config.SUBGRAPH_CSV.exists():
         raise FileNotFoundError(
             f"Sous-graphe introuvable : {config.SUBGRAPH_CSV}\n"

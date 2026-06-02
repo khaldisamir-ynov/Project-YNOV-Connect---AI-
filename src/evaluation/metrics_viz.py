@@ -23,8 +23,13 @@ from src.gnn.hetero.models import HeteroTransactionGNN
 from src.rdf.to_hetero_pyg import load_hetero_data
 
 METRIC_NAMES = ["pr_auc", "recall", "precision", "f1", "loss"]
-SPLIT_NAMES = ["train", "val", "test"]
-SPLIT_LABELS = {"train": "Train", "val": "Validation", "test": "Test"}
+SPLIT_NAMES = ["train", "val", "test", "holdout"]
+SPLIT_LABELS = {
+    "train": "Train",
+    "val": "Validation",
+    "test": "Test",
+    "holdout": "Hold-out (LI-Medium)",
+}
 
 
 def discover_metrics_files(results_dir: Path = config.RESULTS_DIR) -> list[Path]:

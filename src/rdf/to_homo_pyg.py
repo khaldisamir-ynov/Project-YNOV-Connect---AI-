@@ -125,12 +125,18 @@ def rdf_to_dataframe(g: Graph) -> pd.DataFrame:
 def build_pyg_from_rdf(
     ttl_path: Path = config.ABOX_SUBGRAPH_TTL,
     pyg_path: Path = config.PYG_DATA,
+    feature_info_ref: FeatureInfo | None = None,
+    holdout_eval: bool = False,
 ) -> tuple[Data, FeatureInfo]:
     """Pipeline complet : Turtle → DataFrame → PyG Data."""
     g = load_rdf_graph(ttl_path)
     df = rdf_to_dataframe(g)
     if df.empty:
         raise ValueError(f"Aucune transaction extraite de {ttl_path}")
-    data, info = build_pyg_data(df)
+    data, info = build_pyg_data(
+        df,
+        feature_info_ref=feature_info_ref,
+        holdout_eval=holdout_eval,
+    )
     save_pyg_data(data, info, out_path=pyg_path)
     return data, info

@@ -62,7 +62,12 @@ supervisé basées sur des données tabulaires ?
 | 2a | Sous-échantillonnage stratifié | ✅ Fait | 01/06/2026 | `data/csv/cleaned/LI-Small_Trans_sample.csv` |
 | 2b | Génération A-Box RDF | ✅ Fait | 01/06/2026 | `data/rdf/ontology_data/aml_data.ttl` |
 | 3 | Approche "ponctuelle" (tabulaire) | ♻️ **Réutilisée** (projet ML antérieur) | 19/02/2026 | `archive/baseline-anomalie-ponctuelle/.../Activite_10.ipynb` |
-| 4a | Échantillonnage par sous-graphe ego (préalable au GNN) | ✅ Fait | 01/06/2026 | `data/csv/cleaned/LI-Small_Trans_subgraph.csv` |
+| 4a | Échantillonnage par sous-graphe ego — train (LI-Small) | ✅ Fait | 01/06/2026 | `data/train_data/csv/cleaned/LI-Small_Trans_subgraph.csv` |
+| 4a-hold | Sous-graphe ego — hold-out (LI-Medium) | ✅ Fait | 02/06/2026 | `data/unknown_data/csv/cleaned/LI-Medium_Trans_subgraph.csv` |
+| 4b-hold | A-Box + inférence RDF (unknown) | ✅ Fait | 02/06/2026 | `data/unknown_data/rdf/ontology_data/aml_data_subgraph_enriched.ttl` |
+| 4c-hold | PyG hetero + homo hold-out (`--holdout-eval`) | ✅ Fait | 02/06/2026 | `data/unknown_data/pyg/aml_hetero_graph.pt`, `aml_graph.pt` |
+| 5-hold | Test final inférence (3 GNN) | ✅ Fait | 02/06/2026 | `data/unknown_data/results/eval_holdout_metrics.json` |
+| 5-hold-viz | Visualisations hold-out (phase E) | ✅ Fait | 02/06/2026 | `data/unknown_data/results/holdout_*.png`, `09_visualize_holdout.py` |
 | 4b | Inférence RDF (A-Box enrichie) | ✅ Fait | 01/06/2026 | `aml_data_subgraph_enriched.ttl` |
 | 4c | Conversion RDF → HeteroData PyG | ✅ Fait | 01/06/2026 | `data/pyg/aml_hetero_graph.pt` |
 | 4b-legacy | Conversion RDF → PyG homogène | ✅ Fait | 01/06/2026 | `data/pyg/aml_graph.pt` |
@@ -442,6 +447,144 @@ moitié des comptes a maintenant au moins 2 transactions — ce qui rend le
 - **Le sampling stratifié naïf reste disponible** (`scripts/01_sample_data.py`)
   pour des tests rapides ou si on veut nourrir l'A-Box RDF d'une autre
   distribution.
+
+---
+
+## Étape 4a-hold — Sous-graphe ego hold-out (LI-Medium, test final)
+
+**Date** : 02/06/2026  
+**Statut** : ✅ Terminée  
+**Script** : `python scripts/03_subgraph_sample.py --data-profile unknown`  
+**Module** : `src/pipeline/subgraph_sampling.py` (mode **chunked**, `chunksize=50 000`)  
+**Livrable** : `data/unknown_data/csv/cleaned/LI-Medium_Trans_subgraph.csv`
+
+### Objectif
+
+Produire **200 000 transactions** sur **LI-Medium** (~31,3 M lignes) avec la
+même méthode que l'entraînement (ego K=1, seed 42, 100 % des fraudes au
+plafonnement), pour l'évaluation hold-out des GNN entraînés sur LI-Small.
+
+### Corpus brut scanné
+
+| Indicateur | Valeur |
+|------------|--------|
+| Transactions | 31 251 483 |
+| Fraudes | 16 041 (0,051 %) |
+| Comptes graines | 23 510 |
+| Comptes après 1-hop | 250 499 |
+| Transactions ego (avant plafond) | 12 126 651 |
+| Fraudes ego (avant plafond) | 16 041 |
+
+### Échantillon final et connexité
+
+| Indicateur | Valeur |
+|------------|--------|
+| Transactions | **200 000** |
+| Fraudes | **16 041** (8,02 %) |
+| Comptes uniques | 216 008 |
+| Degré moyen | 1,85 |
+| Degré médian | 1,00 |
+| Degré max | 18 306 |
+| % degré = 1 | 62,72 % |
+
+### Comparaison train vs hold-out
+
+| Métrique | LI-Small (train) | LI-Medium (hold-out) |
+|----------|------------------|----------------------|
+| Fraudes finales | 3 565 (1,78 %) | 16 041 (8,02 %) |
+| Comptes | 121 082 | 216 008 |
+| Degré moyen | 3,30 | 1,85 |
+| % degré = 1 | 36 % (log 4a) | 62,72 % |
+
+Lecture : le hold-out est **plus riche en fraudes** mais **moins favorable au
+message passing** (plus de comptes quasi isolés). Interpréter les métriques
+GNN en conséquence.
+
+**Suite** : pipeline hold-out → voir étapes 4b-hold à 5-hold ci-dessous.
+
+---
+
+## Étape 4b-hold — RDF hold-out (LI-Medium)
+
+**Date** : 02/06/2026  
+**Statut** : ✅ Terminée  
+**Scripts** : `02b_build_rdf_subgraph.py`, `02c_enrich_rdf.py` (`--data-profile unknown`)  
+**T-Box** : `data/train_data/rdf/ontology_schema/aml.ttl` (partagée)
+
+| Livrable | Emplacement |
+|----------|-------------|
+| A-Box sous-graphe | `data/unknown_data/rdf/ontology_data/aml_data_subgraph.ttl` |
+| A-Box enrichie | `data/unknown_data/rdf/ontology_data/aml_data_subgraph_enriched.ttl` |
+
+Inférence identique au train : `transactedWith`, `sameBankAs` (règles matérialisées sur le sous-graphe Medium).
+
+---
+
+## Étape 4c-hold — PyG hold-out + alignement features
+
+**Date** : 02/06/2026  
+**Statut** : ✅ Terminée  
+**Script** : `04_build_pyg.py --data-profile unknown --holdout-eval`
+
+| Graphe | Dimensions clés | Fraudes |
+|--------|-----------------|---------|
+| HeteroData | account (216008, 5), transaction (200000, 27), bank (8135, 2) | 16 041 / 200 000 |
+| Data homogène | x (216008, 4), edge_attr (200000, 17) | 16 041 / 200 000 |
+
+**Problème rencontré** : au premier run, `bank` avait 9 dimensions (vocabulaire Medium) vs 2 dans le checkpoint train → `ValueError` à l’évaluation.
+
+**Correction** : `align_feature_bundle()` + `hetero_feature_names_from_train()` — colonnes alignées sur `hetero_info` du checkpoint avant sauvegarde du `.pt`.
+
+---
+
+## Étape 5-hold — Test final (généralisation)
+
+**Date** : 02/06/2026  
+**Statut** : ✅ Terminée  
+**Script** : `07_eval_holdout.py` (ou `08_run_unknown_holdout_pipeline.py --skip-subgraph`)  
+**Module** : `src/evaluation/holdout_eval.py`  
+**Livrable** : `data/unknown_data/results/eval_holdout_metrics.json`
+
+### Protocole
+
+- Checkpoints **train** : `data/train_data/results/gnn_{hetero,sage,gat}_best.pt`
+- Graphes **unknown** : `data/unknown_data/pyg/`
+- **Aucun ré-entraînement** sur Medium
+- Métriques sur les **200 000** transactions (évaluation plein graphe)
+
+### Résultats hold-out
+
+| Modèle | PR-AUC | Recall | Precision | F1 |
+|--------|--------|--------|-----------|-----|
+| **HeteroGNN** | **0,5947** | 0,6993 | **0,5437** | **0,6117** |
+| GraphSAGE | 0,2286 | 0,7809 | 0,1335 | 0,2280 |
+| GAT | 0,1497 | 0,6434 | 0,1143 | 0,1941 |
+
+### Lecture (soutenance)
+
+- **HeteroGNN** : meilleur compromis PR-AUC / precision ; adapté au **triage** d’alertes (pas décision finale seule).
+- **SAGE / GAT** : recall élevé mais precision ~11–13 % → **sur-alerte** ; PR-AUC faible = mauvais ranking des cas suspects.
+- Comparaison test interne LI-Small (Hetero PR-AUC **0,254**, recall **95 %**, precision **6 %**) : le hold-out montre une **généralisation du signal** (PR-AUC ↑) avec un seuil plus conservateur (recall ↓, precision ↑).
+
+**Commande de reproduction** :
+
+```powershell
+python scripts/08_run_unknown_holdout_pipeline.py --skip-subgraph
+python scripts/09_visualize_holdout.py
+```
+
+### Étape 5-hold-viz — Graphiques et CSV (équivalent phase E)
+
+**Script** : `scripts/09_visualize_holdout.py` — **Module** : `src/evaluation/holdout_viz.py`  
+**Notebook** : `notebooks/holdout_metrics_evaluation.ipynb`
+
+Livrables principaux dans `data/unknown_data/results/` :
+
+- `holdout_metrics_grid.png`, `holdout_pr_auc_bars.png`, `holdout_architecture_*.png`
+- `holdout_pr_curves_all_models.png`, `holdout_confusion_matrices_all_models.png`
+- `holdout_train_vs_holdout_pr_auc.png` (généralisation)
+- `holdout_train_convergence_reference.png` (référence entraînement LI-Small)
+- `gnn_*_holdout_metrics.json`, `holdout_metrics_summary.csv`, `holdout_viz_manifest.json`
 
 ---
 

@@ -2,7 +2,8 @@
 
 **Auteur** — Samir KHALDI  
 **Date** — 01/06/2026  
-**Données** — Sous-graphe ego IBM AML (200 000 transactions, 3 565 fraudes, seed 42)
+**Données train** — LI-Small : 200 000 transactions, 3 565 fraudes (1,78 %), seed 42  
+**Données hold-out** — LI-Medium : 200 000 transactions, 16 041 fraudes (8,02 %) — voir §2b–2c (résultats ✅ 02/06/2026)
 
 > Document de synthèse comparant **GraphSAGE**, **GAT** et **HeteroGNN**.
 > Pour l’analyse **epoch par epoch** (convergence), voir la section 6 et
@@ -88,6 +89,52 @@ Account ──sends_via──▶ Transaction ──deposits_to──▶ Account
 **Note** : HeteroGNN utilise en plus le graphe **enrichi** par inférence RDF
 (+224k triplets `transactedWith` / `sameBankAs`). La comparaison mesure donc
 **architecture + représentation enrichie** vs **architecture homogène simple**.
+
+### 2b. Jeu hold-out LI-Medium (test final — 02/06/2026)
+
+Sous-graphe produit par `python scripts/03_subgraph_sample.py --data-profile unknown`
+(mode chunked, 50k lignes/morceau). Même `EGO_TARGET_SIZE` et T-Box que le train.
+
+| Indicateur | LI-Small (train) | LI-Medium (hold-out) |
+|------------|------------------|----------------------|
+| Source brute | ~6,9 M tx (échantillon projet) | **31 251 483** tx |
+| Transactions finales | 200 000 | 200 000 |
+| Fraudes | 3 565 (1,78 %) | **16 041 (8,02 %)** |
+| Ego avant plafond | 2 451 392 tx | **12 126 651** tx |
+| Comptes uniques | 121 082 | **216 008** |
+| Degré moyen | 3,30 | **1,85** |
+| Degré médian | 2,00 | **1,00** |
+| Degré max | 18 198 | **18 306** |
+| % degré = 1 | ~36 % | **62,72 %** |
+
+Fichier : `data/unknown_data/csv/cleaned/LI-Medium_Trans_subgraph.csv`  
+Métriques GNN hold-out : `data/unknown_data/results/eval_holdout_metrics.json` ✅ **02/06/2026**
+
+### 2c. Résultats hold-out (inférence, checkpoints train)
+
+**Protocole** : `scripts/07_eval_holdout.py` — modèles entraînés sur LI-Small, graphe LI-Medium (200k tx, 16 041 fraudes, 8,02 %). Features hétérogènes alignées sur le checkpoint (`--holdout-eval`).
+
+| Modèle | PR-AUC | Recall | Precision | F1 | Checkpoint epoch (train) |
+|--------|--------|--------|-----------|-----|----------------------------|
+| **HeteroGNN** | **0,595** | 0,699 | **0,544** | **0,612** | 40 |
+| GraphSAGE | 0,229 | 0,781 | 0,133 | 0,228 | 40 |
+| GAT | 0,150 | 0,643 | 0,114 | 0,194 | 3 |
+
+#### Train (test interne 15 %) vs hold-out — HeteroGNN
+
+| Métrique | LI-Small test | LI-Medium hold-out | Commentaire |
+|----------|---------------|-------------------|-------------|
+| PR-AUC | 0,254 | **0,595** | Meilleur ordonnancement des fraudes sur corpus inconnu |
+| Recall | 94,8 % | 69,9 % | Moins de sur-détection qu’au seuil train |
+| Precision | 5,9 % | **54,4 %** | Alertes beaucoup plus « propres » en hold-out |
+| F1 | 0,112 | **0,612** | Compromis recall/precision nettement meilleur |
+
+#### Message pour la soutenance
+
+1. Sur le **même paradigme** (GNN structurel), le **HeteroGNN** domine SAGE et GAT en hold-out (PR-AUC ×2,6 à ×4 par rapport aux homogènes).
+2. Les modèles **homogènes** conservent un recall élevé mais une **precision catastrophique** (~12 %) : inutilisables en production sans recalibrage du seuil.
+3. Le hold-out valide que l’**architecture + RDF enrichi** ne sont pas un artefact du seul LI-Small.
+4. Ne pas comparer naïvement PR-AUC train vs hold-out sans rappeler le **changement de taux de fraude** (1,78 % → 8,02 %) et de **densité** (degré moy. 3,30 → 1,85).
 
 ---
 

@@ -25,6 +25,8 @@ from torch_geometric.data import HeteroData
 
 from src import config
 from src.rdf.features import (
+    NodeFeatureBundle,
+    align_feature_bundle,
     extract_node_features,
     load_schema_properties,
     structural_account_features,
@@ -102,6 +104,8 @@ def build_hetero_data(
     val_size: float = 0.15,
     test_size: float = 0.15,
     random_seed: int = config.RANDOM_SEED,
+    holdout_eval: bool = False,
+    reference_feature_names: dict[str, list[str]] | None = None,
 ) -> tuple[HeteroData, HeteroFeatureInfo]:
     """Construit HeteroData depuis le graphe RDF enrichi."""
     schema_by_class = load_schema_properties()
@@ -125,7 +129,29 @@ def build_hetero_data(
     bank_bundle = extract_node_features(g, AML.Bank, bank_uris, bank_props)
     acct_struct = structural_account_features(g, account_uris, acct_uri_to_idx)
     acct_owl = extract_node_features(g, AML.Account, account_uris, schema_by_class.get("Account", []))
-    acct_x = _concat_features(acct_owl.x, acct_struct.x)
+    acct_combined = NodeFeatureBundle(
+        x=_concat_features(acct_owl.x, acct_struct.x),
+        feature_names=acct_owl.feature_names + acct_struct.feature_names,
+    )
+
+    if reference_feature_names:
+        ref_acct = reference_feature_names.get("account", [])
+        ref_tx = reference_feature_names.get("transaction", [])
+        ref_bank = reference_feature_names.get("bank", [])
+        if ref_acct:
+            acct_combined = align_feature_bundle(acct_combined, ref_acct)
+        if ref_tx:
+            tx_bundle = align_feature_bundle(tx_bundle, ref_tx)
+        if ref_bank:
+            bank_bundle = align_feature_bundle(bank_bundle, ref_bank)
+        logger.info(
+            "Features alignées sur le train — account=%s | transaction=%s | bank=%s",
+            acct_combined.x.size(1),
+            tx_bundle.x.size(1),
+            bank_bundle.x.size(1),
+        )
+
+    acct_x = acct_combined.x
 
     # --- Labels transaction ---
     labels = []
@@ -135,27 +161,32 @@ def build_hetero_data(
     y = torch.tensor(labels, dtype=torch.long)
     n_fraud = int(y.sum())
 
-    # --- Splits stratifiés sur les transactions ---
-    indices = np.arange(len(y))
-    train_idx, temp_idx = train_test_split(
-        indices,
-        test_size=val_size + test_size,
-        stratify=y.numpy(),
-        random_state=random_seed,
-    )
-    val_ratio = val_size / (val_size + test_size)
-    val_idx, test_idx = train_test_split(
-        temp_idx,
-        test_size=1 - val_ratio,
-        stratify=y.numpy()[temp_idx],
-        random_state=random_seed,
-    )
+    # --- Masques (splits ou hold-out intégral) ---
     train_mask = torch.zeros(len(y), dtype=torch.bool)
     val_mask = torch.zeros(len(y), dtype=torch.bool)
     test_mask = torch.zeros(len(y), dtype=torch.bool)
-    train_mask[train_idx] = True
-    val_mask[val_idx] = True
-    test_mask[test_idx] = True
+
+    if holdout_eval:
+        test_mask[:] = True
+        logger.info("Mode hold-out : %s transactions en évaluation.", f"{len(y):,}")
+    else:
+        indices = np.arange(len(y))
+        train_idx, temp_idx = train_test_split(
+            indices,
+            test_size=val_size + test_size,
+            stratify=y.numpy(),
+            random_state=random_seed,
+        )
+        val_ratio = val_size / (val_size + test_size)
+        val_idx, test_idx = train_test_split(
+            temp_idx,
+            test_size=1 - val_ratio,
+            stratify=y.numpy()[temp_idx],
+            random_state=random_seed,
+        )
+        train_mask[train_idx] = True
+        val_mask[val_idx] = True
+        test_mask[test_idx] = True
 
     # --- Assemblage HeteroData ---
     data = HeteroData()
@@ -192,14 +223,13 @@ def build_hetero_data(
     n_tw = data["account", "transacted_with", "account"].edge_index.size(1)
     n_sb = data["account", "same_bank_as", "account"].edge_index.size(1)
 
-    acct_feat_names = acct_owl.feature_names + acct_struct.feature_names
     info = HeteroFeatureInfo(
         node_types=["account", "transaction", "bank"],
         edge_types=list(data.edge_types),
         node_feature_names={
-            "account": acct_feat_names,
-            "transaction": tx_bundle.feature_names,
-            "bank": bank_bundle.feature_names,
+            "account": list(acct_combined.feature_names),
+            "transaction": list(tx_bundle.feature_names),
+            "bank": list(bank_bundle.feature_names),
         },
         n_nodes={
             "account": len(account_uris),
@@ -240,8 +270,14 @@ def load_hetero_data(path: Path = config.PYG_HETERO_DATA) -> tuple[HeteroData, H
 def build_hetero_pyg_from_rdf(
     ttl_path: Path = config.ABOX_SUBGRAPH_ENRICHED_TTL,
     pyg_path: Path = config.PYG_HETERO_DATA,
+    holdout_eval: bool = False,
+    reference_feature_names: dict[str, list[str]] | None = None,
 ) -> tuple[HeteroData, HeteroFeatureInfo]:
     g = load_enriched_graph(ttl_path)
-    data, info = build_hetero_data(g)
+    data, info = build_hetero_data(
+        g,
+        holdout_eval=holdout_eval,
+        reference_feature_names=reference_feature_names,
+    )
     save_hetero_data(data, info, pyg_path)
     return data, info

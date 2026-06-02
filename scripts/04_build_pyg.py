@@ -21,6 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd  # noqa: E402
 
 from src import config  # noqa: E402
+from src.data_profile import add_profile_arg  # noqa: E402
+from src.evaluation.holdout_eval import (  # noqa: E402
+    hetero_feature_names_from_train,
+    homo_feature_info_from_train,
+)
 from src.gnn.graph_loader import build_pyg_data, load_pyg_data, save_pyg_data  # noqa: E402
 from src.rdf.to_hetero_pyg import build_hetero_pyg_from_rdf, load_hetero_data  # noqa: E402
 from src.rdf.to_homo_pyg import build_pyg_from_rdf  # noqa: E402
@@ -34,6 +39,7 @@ logger = logging.getLogger("build_pyg")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Construit le tenseur PyG.")
+    add_profile_arg(parser)
     parser.add_argument(
         "--mode",
         choices=["hetero", "homo"],
@@ -45,6 +51,11 @@ def parse_args() -> argparse.Namespace:
         choices=["rdf", "csv"],
         default="rdf",
         help="Source homo uniquement : rdf ou csv.",
+    )
+    parser.add_argument(
+        "--holdout-eval",
+        action="store_true",
+        help="100 %% des labels en masque test (évaluation finale, pas de split train/val).",
     )
     return parser.parse_args()
 
@@ -76,6 +87,7 @@ def _sanity_homo() -> None:
 
 def main() -> None:
     args = parse_args()
+    config.set_data_profile(args.data_profile)
 
     if args.mode == "hetero":
         if not config.ABOX_SUBGRAPH_ENRICHED_TTL.exists():
@@ -84,12 +96,30 @@ def main() -> None:
                 "→ Lance d'abord `python scripts/02c_enrich_rdf.py`."
             )
         logger.info("Mode HETERO — source : %s", config.ABOX_SUBGRAPH_ENRICHED_TTL.name)
+        hetero_ref = None
+        if args.holdout_eval and args.data_profile == "unknown":
+            hetero_ref = hetero_feature_names_from_train(config.TRAIN_RESULTS_DIR)
+            if hetero_ref is None:
+                logger.warning(
+                    "hetero_info absent du checkpoint — dimensions peuvent différer du train."
+                )
+            else:
+                logger.info("Alignement des features sur le checkpoint train (hold-out).")
         build_hetero_pyg_from_rdf(
             ttl_path=config.ABOX_SUBGRAPH_ENRICHED_TTL,
             pyg_path=config.PYG_HETERO_DATA,
+            holdout_eval=args.holdout_eval,
+            reference_feature_names=hetero_ref,
         )
         _sanity_hetero()
     else:
+        feat_ref = None
+        if args.holdout_eval and args.data_profile == "unknown":
+            feat_ref = homo_feature_info_from_train("sage", config.TRAIN_RESULTS_DIR)
+            if feat_ref is None:
+                logger.warning(
+                    "feature_info absent du checkpoint sage — vocabulaire dérivé du CSV Medium."
+                )
         if args.source == "rdf":
             if not config.ABOX_SUBGRAPH_TTL.exists():
                 raise FileNotFoundError(
@@ -99,6 +129,8 @@ def main() -> None:
             build_pyg_from_rdf(
                 ttl_path=config.ABOX_SUBGRAPH_TTL,
                 pyg_path=config.PYG_DATA,
+                feature_info_ref=feat_ref,
+                holdout_eval=args.holdout_eval,
             )
         else:
             if not config.SUBGRAPH_CSV.exists():
@@ -115,7 +147,11 @@ def main() -> None:
                     "receiving_currency": str,
                 },
             )
-            data, info = build_pyg_data(df)
+            data, info = build_pyg_data(
+                df,
+                feature_info_ref=feat_ref,
+                holdout_eval=args.holdout_eval,
+            )
             save_pyg_data(data, info, out_path=config.PYG_DATA)
         _sanity_homo()
 

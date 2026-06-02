@@ -2,7 +2,7 @@
 
 **Projet** — Connect AI / YNOV M1 IA DATA  
 **Auteur** — Samir KHALDI  
-**Date** — 01/06/2026  
+**Date** — 01/06/2026 — *complété hold-out 02/06/2026*
 
 > Document de synthèse (étape 6). Complète le journal de bord
 > (`process_log.md`) et le guide conceptuel (`concepts_explained.md`).
@@ -250,6 +250,45 @@ Les deux approches **ne sont pas concurrentes** : elles couvrent des
 
 ---
 
+## 5b. Test de généralisation (hold-out LI-Medium — 02/06/2026)
+
+### Protocole
+
+Pour compléter la démonstration « structurelle » au-delà du seul LI-Small :
+
+1. **Corpus inconnu** : `LI-Medium_Trans.csv` (~31,3 M transactions) — jamais utilisé à l’entraînement.
+2. **Même ETL** : ego K=1, plafond 200 000 tx, 100 % des fraudes conservées, T-Box `aml.ttl` partagée, inférence `transactedWith` / `sameBankAs`.
+3. **Inférence seule** : application des checkpoints `gnn_{hetero,sage,gat}_best.pt` entraînés sur Small.
+4. **Alignement features** : dimensions hétérogènes calées sur le schéma du checkpoint (`--holdout-eval`).
+
+### Jeu hold-out (chiffres)
+
+| Indicateur | LI-Small (train) | LI-Medium (hold-out) |
+|------------|------------------|----------------------|
+| Transactions finales | 200 000 | 200 000 |
+| Fraudes | 3 565 (1,78 %) | 16 041 (8,02 %) |
+| Comptes | 121 082 | 216 008 |
+| Degré moyen | 3,30 | 1,85 |
+
+### Résultats
+
+| Modèle | PR-AUC | Recall | Precision | F1 |
+|--------|--------|--------|-----------|-----|
+| **HeteroGNN** | **0,595** | 0,699 | **0,544** | **0,612** |
+| GraphSAGE | 0,229 | 0,781 | 0,133 | 0,228 |
+| GAT | 0,150 | 0,643 | 0,114 | 0,194 |
+
+### Interprétation
+
+- Le **HeteroGNN** est le seul modèle à conserver un **bon classement** (PR-AUC) et un **compromis recall/precision** utilisable sur un corpus externe.
+- Les GNN **homogènes** sur-alertent (precision ~12 %) : adaptés à un objectif « ne rien manquer », pas à un triage opérationnel sans recalibrage.
+- Le PR-AUC hold-out **supérieur** au test interne Small (0,59 vs 0,25) s’explique en partie par un **taux de fraude plus élevé** (8 % vs 1,78 %) et un **graphe plus fragmenté** — ce n’est pas une preuve que Medium est « plus facile », mais que le signal structurel **se transporte** hors échantillon d’entraînement.
+
+**Livrable** : `data/unknown_data/results/eval_holdout_metrics.json`  
+**Documentation détaillée** : `docs/pipeline_etl_entrainement_evaluation.md`, `docs/analysis/comparaison_modeles_gnn.md` §2c, `process_log.md` étapes 4b-hold à 5-hold.
+
+---
+
 ## 6. Réponse à la problématique
 
 > *Dans quelle mesure l'intégration de la topologie via GNN améliore-t-elle
@@ -270,7 +309,8 @@ mais pas substitutive.**
    - Modélisation sémantique RDF (T-Box + A-Box, SPARQL).
    - Inférence ontologique (`transactedWith`, `sameBankAs`).
    - Graphe hétérogène multi-relationnel (HeteroData + HeteroConv).
-   - Signal de détection réel (PR-AUC 14× supérieur au hasard, recall 95 %).
+   - Signal de détection réel sur LI-Small (PR-AUC 14× supérieur au hasard, recall 95 %).
+   - **Généralisation** sur LI-Medium hold-out (HeteroGNN : PR-AUC **0,59**, F1 **0,61**, precision **54 %**).
 
 3. **Le GNN ne remplace pas le tabulaire** — il le **complète**. Le RF reste
    plus adapté aux anomalies ponctuelles (fraude carte, montant aberrant).
@@ -338,7 +378,8 @@ transaction isolée.
 | [`process_log.md`](process_log.md) | Journal de bord détaillé (étapes 0–6, chiffres, décisions) |
 | [`concepts_explained.md`](../guides/concepts_explained.md) | Concepts techniques (RDF, GNN, ego-sampling, métriques) |
 | [`guide_detaille.md`](../guides/guide_detaille.md) | Guide pas à pas et glossaire soutenance |
-| [`comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison GraphSAGE / GAT / HeteroGNN |
+| [`comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison GraphSAGE / GAT / HeteroGNN + hold-out §2c |
+| [`pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md) | Pipeline ETL → évaluation + test final Medium |
 | [`README.md`](../../README.md) | Guide d'exécution du pipeline |
 | `data/results/gnn_sage_metrics.json` | Métriques GraphSAGE (train/val/test) |
 | `data/rdf/ontology_schema/aml.ttl` | T-Box (schéma ontologique) |

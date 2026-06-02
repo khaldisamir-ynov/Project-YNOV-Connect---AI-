@@ -82,6 +82,8 @@ def build_pyg_data(
     val_size: float = 0.15,
     test_size: float = 0.15,
     random_seed: int = config.RANDOM_SEED,
+    feature_info_ref: FeatureInfo | None = None,
+    holdout_eval: bool = False,
 ) -> tuple[Data, FeatureInfo]:
     """Construit un `Data` PyG à partir du DataFrame échantillonné."""
     logger.info("Construction du graphe PyG pour %s transactions…", f"{len(df):,}")
@@ -104,12 +106,18 @@ def build_pyg_data(
 
     # 2b. One-hot du format de paiement
     payment_formats = df["payment_format"].astype(str)
-    payment_format_vocab = sorted(payment_formats.unique().tolist())
+    if feature_info_ref and feature_info_ref.payment_format_vocab:
+        payment_format_vocab = list(feature_info_ref.payment_format_vocab)
+    else:
+        payment_format_vocab = sorted(payment_formats.unique().tolist())
     pf_onehot = _one_hot(payment_formats, payment_format_vocab)
 
     # 2c. One-hot de la devise (top-N + Other)
     currencies = df["payment_currency"].astype(str)
-    currency_vocab = _top_n_vocab(currencies, n=currency_top_n)
+    if feature_info_ref and feature_info_ref.currency_vocab:
+        currency_vocab = list(feature_info_ref.currency_vocab)
+    else:
+        currency_vocab = _top_n_vocab(currencies, n=currency_top_n)
     cur_onehot = _one_hot(currencies, currency_vocab)
 
     edge_attr = np.concatenate(
@@ -160,36 +168,39 @@ def build_pyg_data(
     n_fraud = int(y.sum())
     logger.info("Fraudes (arêtes positives) : %s / %s (%.2f %%)", n_fraud, len(y), 100 * n_fraud / len(y))
 
-    # --- 5. Splits stratifiés (sur les arêtes) ---
-    indices = np.arange(len(y))
-    train_idx, temp_idx = train_test_split(
-        indices,
-        test_size=val_size + test_size,
-        stratify=y.numpy(),
-        random_state=random_seed,
-    )
-    val_ratio = val_size / (val_size + test_size)
-    val_idx, test_idx = train_test_split(
-        temp_idx,
-        test_size=1 - val_ratio,
-        stratify=y.numpy()[temp_idx],
-        random_state=random_seed,
-    )
-
+    # --- 5. Masques (splits ou hold-out intégral) ---
     n_edges = len(y)
     train_mask = torch.zeros(n_edges, dtype=torch.bool)
     val_mask = torch.zeros(n_edges, dtype=torch.bool)
     test_mask = torch.zeros(n_edges, dtype=torch.bool)
-    train_mask[train_idx] = True
-    val_mask[val_idx] = True
-    test_mask[test_idx] = True
 
-    logger.info(
-        "Splits stratifiés — train: %s | val: %s | test: %s",
-        f"{int(train_mask.sum()):,}",
-        f"{int(val_mask.sum()):,}",
-        f"{int(test_mask.sum()):,}",
-    )
+    if holdout_eval:
+        test_mask[:] = True
+        logger.info("Mode hold-out : %s arêtes en évaluation.", f"{n_edges:,}")
+    else:
+        indices = np.arange(len(y))
+        train_idx, temp_idx = train_test_split(
+            indices,
+            test_size=val_size + test_size,
+            stratify=y.numpy(),
+            random_state=random_seed,
+        )
+        val_ratio = val_size / (val_size + test_size)
+        val_idx, test_idx = train_test_split(
+            temp_idx,
+            test_size=1 - val_ratio,
+            stratify=y.numpy()[temp_idx],
+            random_state=random_seed,
+        )
+        train_mask[train_idx] = True
+        val_mask[val_idx] = True
+        test_mask[test_idx] = True
+        logger.info(
+            "Splits stratifiés — train: %s | val: %s | test: %s",
+            f"{int(train_mask.sum()):,}",
+            f"{int(val_mask.sum()):,}",
+            f"{int(test_mask.sum()):,}",
+        )
 
     # --- 6. Assemblage final ---
     data = Data(

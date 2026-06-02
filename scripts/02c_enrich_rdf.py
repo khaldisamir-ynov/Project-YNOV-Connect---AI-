@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src import config  # noqa: E402
+from src.data_profile import add_profile_arg  # noqa: E402
 from src.rdf.inference import enrich_rdf_file  # noqa: E402
 
 logging.basicConfig(
@@ -27,17 +28,18 @@ logger = logging.getLogger("enrich_rdf")
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Enrichit l'A-Box RDF par inférence.")
+    add_profile_arg(p)
     p.add_argument(
         "--input",
         type=Path,
-        default=config.ABOX_SUBGRAPH_TTL,
-        help="A-Box source (défaut : aml_data_subgraph.ttl).",
+        default=None,
+        help="A-Box source (défaut : aml_data_subgraph.ttl du profil actif).",
     )
     p.add_argument(
         "--output",
         type=Path,
-        default=config.ABOX_SUBGRAPH_ENRICHED_TTL,
-        help="A-Box enrichie de sortie.",
+        default=None,
+        help="A-Box enrichie de sortie (défaut : profil actif).",
     )
     p.add_argument(
         "--owlrl",
@@ -49,16 +51,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if not args.input.exists():
+    config.set_data_profile(args.data_profile)
+    input_path = args.input or config.ABOX_SUBGRAPH_TTL
+    output_path = args.output or config.ABOX_SUBGRAPH_ENRICHED_TTL
+    if not input_path.exists():
         raise FileNotFoundError(
-            f"A-Box introuvable : {args.input}\n"
+            f"A-Box introuvable : {input_path}\n"
             "→ Lance d'abord `python scripts/02b_build_rdf_subgraph.py`."
         )
 
-    logger.info("Inférence RDF : %s → %s", args.input.name, args.output.name)
+    logger.info("Inférence RDF : %s → %s", input_path.name, output_path.name)
     enrich_rdf_file(
-        abox_path=args.input,
-        out_path=args.output,
+        abox_path=input_path,
+        out_path=output_path,
         use_owlrl=args.owlrl or config.RDF_USE_OWLRL,
     )
     logger.info("Terminé.")

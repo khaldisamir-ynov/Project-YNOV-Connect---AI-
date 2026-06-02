@@ -177,6 +177,35 @@ def extract_node_features(
     )
 
 
+def align_feature_bundle(
+    bundle: NodeFeatureBundle,
+    target_names: list[str],
+) -> NodeFeatureBundle:
+    """Aligne les colonnes de features sur celles du modèle entraîné (hold-out)."""
+    if not target_names:
+        return bundle
+
+    n = bundle.x.size(0)
+    name_to_idx = {name: i for i, name in enumerate(bundle.feature_names)}
+    parts: list[torch.Tensor] = []
+
+    for name in target_names:
+        if name in name_to_idx:
+            idx = name_to_idx[name]
+            parts.append(bundle.x[:, idx : idx + 1])
+        elif name == "bias":
+            parts.append(torch.ones((n, 1), dtype=bundle.x.dtype))
+        else:
+            parts.append(torch.zeros((n, 1), dtype=bundle.x.dtype))
+
+    x = torch.cat(parts, dim=1) if parts else torch.zeros((n, 1), dtype=torch.float32)
+    return NodeFeatureBundle(
+        x=x,
+        feature_names=list(target_names),
+        categorical_vocabs=bundle.categorical_vocabs,
+    )
+
+
 def structural_account_features(
     g: Graph,
     account_uris: list[URIRef],

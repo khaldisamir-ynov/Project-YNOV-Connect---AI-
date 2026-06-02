@@ -137,7 +137,8 @@ Avant la session du 01/06/2026, le projet disposait déjà de :
 |---|---|
 | **T-Box** `aml.ttl` | Ontologie OWL : classes Account, Bank, Transaction + relations |
 | **A-Box démo** `aml_data.ttl` | 100 000 transactions en RDF (Web Sémantique) |
-| **Sous-graphe ego** | 200 000 transactions connectées autour des fraudes |
+| **Sous-graphe ego (train)** | LI-Small : 200 000 tx, 3 565 fraudes, degré moy. 3,30 |
+| **Sous-graphe ego (hold-out)** | LI-Medium : 200 000 tx, 16 041 fraudes, degré moy. 1,85 — `data/unknown_data/` |
 | **GraphSAGE homogène** | GNN simple : comptes = nœuds, transactions = arêtes aplatis |
 | **Rapport final** | Comparaison conceptuelle ponctuel vs structurel |
 
@@ -782,6 +783,57 @@ le filtre tabulaire existant.
 
 ---
 
+<a id="soutenance-holdout"></a>
+## Annexe soutenance — Test de généralisation (LI-Medium)
+
+### Pourquoi ce test ?
+
+Démontrer que les modèles entraînés sur **LI-Small** ne « mémorisent » pas uniquement ce corpus : on applique le **même pipeline ETL** sur **LI-Medium** (~31 M transactions en amont), sans ré-entraîner.
+
+### Chiffres clés à retenir
+
+| | Train (LI-Small) | Hold-out (LI-Medium) |
+|--|------------------|----------------------|
+| Transactions évaluées | 200 000 (split test 15 %) | 200 000 (graphe entier) |
+| Fraudes | 3 565 (1,78 %) | 16 041 (8,02 %) |
+| Degré moyen comptes | 3,30 | 1,85 |
+| Ego avant plafond | 2,45 M tx | 12,1 M tx |
+
+### Résultats (02/06/2026)
+
+| Modèle | PR-AUC | Recall | Precision | F1 |
+|--------|--------|--------|-----------|-----|
+| **HeteroGNN** | **0,595** | 0,699 | **0,544** | **0,612** |
+| GraphSAGE | 0,229 | 0,781 | 0,133 | 0,228 |
+| GAT | 0,150 | 0,643 | 0,114 | 0,194 |
+
+### Phrases types pour l’oral
+
+1. *« Le test final utilise LI-Medium, jamais vu à l’entraînement, avec la même méthode d’échantillonnage ego et la même ontologie RDF. »*
+2. *« Le HeteroGNN obtient PR-AUC 0,59 et precision 54 % sur ce hold-out, contre 13 % pour GraphSAGE malgré un recall similaire — le graphe hétérogène enrichi généralise mieux. »*
+3. *« Le hold-out est plus fragmenté (degré 1,85) et plus frauduleux (8 %) : j’interprète les métriques dans ce contexte, pas comme un simple copier-coller du train. »*
+
+### Commandes hold-out
+
+```powershell
+python scripts/08_run_unknown_holdout_pipeline.py --skip-subgraph
+# ou
+python scripts/07_eval_holdout.py
+```
+
+Livrable : `data/unknown_data/results/eval_holdout_metrics.json`
+
+### Visualisations (même esprit que phase E train)
+
+```powershell
+python scripts/09_visualize_holdout.py
+jupyter notebook notebooks/holdout_metrics_evaluation.ipynb
+```
+
+Figures dans `data/unknown_data/results/` : PR, confusion, scores, radar, comparaison train vs hold-out.
+
+---
+
 ## Commandes de reproduction
 
 ```powershell
@@ -814,10 +866,10 @@ python scripts/06_compare_convergence.py --epochs 40 --retrain
 | [`docs/guides/concepts_explained.md`](concepts_explained.md) | Référence conceptuelle (RDF, GNN, métriques…) |
 | [`docs/reports/final_report.md`](../reports/final_report.md) | Rapport de synthèse pour la soutenance |
 | [`docs/reports/process_log.md`](../reports/process_log.md) | Journal chronologique des décisions et chiffres |
-| [`docs/analysis/comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison modèles + convergence |
+| [`docs/analysis/comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison modèles + convergence + hold-out §2c |
+| [`docs/pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md) | Pipeline complet + résultats test final |
 | [`README.md`](../../README.md) | Guide rapide d'exécution |
 
 ---
 
-*Document généré le 01/06/2026 — reflète l'état du projet après implémentation
-du pipeline RDF enrichi + HeteroGNN multi-relationnel.*
+*Dernière mise à jour : 02/06/2026 — inclut test de généralisation LI-Medium (hold-out).*
