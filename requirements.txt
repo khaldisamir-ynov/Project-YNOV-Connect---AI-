@@ -12,3 +12,5 @@ torch>=2.4
 torch_geometric>=2.5
 # Optionnel — expansion OWL-RL sur l'A-Box enrichie :
 #     pip install owlrl
+# Application démo Streamlit :
+streamlit>=1.32

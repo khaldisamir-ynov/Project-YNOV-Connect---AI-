@@ -1,0 +1,4 @@
+# Désactive l'envoi de statistiques d'usage vers Segment (évite les erreurs
+# net::ERR_BLOCKED_BY_CLIENT quand un bloqueur de pub bloque cdn.segment.com).
+[browser]
+gatherUsageStats = false
