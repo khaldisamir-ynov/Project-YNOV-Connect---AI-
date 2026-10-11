@@ -381,6 +381,8 @@ transaction isolée.
 | [`comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison GraphSAGE / GAT / HeteroGNN + hold-out §2c |
 | [`pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md) | Pipeline ETL → évaluation + test final Medium |
 | [`README.md`](../../README.md) | Guide d'exécution du pipeline |
-| `data/results/gnn_sage_metrics.json` | Métriques GraphSAGE (train/val/test) |
-| `data/rdf/ontology_schema/aml.ttl` | T-Box (schéma ontologique) |
-| `data/rdf/ontology_data/aml_data.ttl` | A-Box (instances RDF) |
+| `data/train_data/results/gnn_sage_metrics.json` | Métriques GraphSAGE (train/val/test) |
+| `data/train_data/rdf/ontology_schema/aml.ttl` | T-Box (schéma ontologique) |
+| `data/train_data/rdf/ontology_data/aml_data.ttl` | A-Box (instances RDF) |
+| [`docs/soutenance.md`](../soutenance.md) | Slides et notes orateur |
+| [`docs/architecture.md`](../architecture.md) | Scripts 01–09, modules `src/` |

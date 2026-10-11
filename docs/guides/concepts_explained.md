@@ -669,7 +669,7 @@ ses modèles.
 | `edge_attr` | `Tensor[N_edges, F_edge]` | Features par arête |
 | `y` | `Tensor[N_edges]` | Labels (edge classification) |
 
-Fichier produit : `data/pyg/aml_graph.pt` — mode `--mode homo`.
+Fichier produit : `data/train_data/pyg/aml_graph.pt` — mode `--mode homo`.
 
 ### Anatomie d'un `HeteroData` (défaut du projet)
 
@@ -682,7 +682,7 @@ Fichier produit : `data/pyg/aml_graph.pt` — mode `--mode homo`.
 | `data['account', 'transacted_with', 'account'].edge_index` | `[2, 221 432]` | Lien **inféré** |
 | `data['transaction'].y` | `[200 000]` | Label fraude (node classification) |
 
-Fichier produit : `data/pyg/aml_hetero_graph.pt` — mode `--mode hetero` (défaut).
+Fichier produit : `data/train_data/pyg/aml_hetero_graph.pt` — mode `--mode hetero` (défaut).
 
 10 types d'arêtes (5 prédicats × 2 directions pour le message passing).
 

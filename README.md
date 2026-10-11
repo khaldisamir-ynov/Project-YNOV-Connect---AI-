@@ -8,20 +8,27 @@
 
 ## Dataset
 
-IBM Transactions for Anti-Money Laundering (AML) — fichier
-`LI-Small_Trans.csv` (~620 Mo, ~6,9 M de transactions synthétiques).
+IBM Transactions for Anti-Money Laundering (AML) :
+
+- **LI-Small** — entraînement (`data/train_data/`)
+- **LI-Medium** — test final hold-out (`data/unknown_data/`)
+
+## Dépôt du projet
+
+Guide détaillé (structure, fichiers retirés, zip à livrer) : **[`DEPOT.md`](DEPOT.md)**
+
+Le dépôt livrable contient le **code**, la **documentation**, les **sous-graphes 200k**, les **graphes PyG**, les **checkpoints** et les **résultats**. Les CSV IBM bruts (~3,5 Go) ne sont pas inclus — voir `DEPOT.md` pour les télécharger et régénérer le pipeline.
 
 ## Documentation
 
-Index complet : [`docs/README.md`](docs/README.md)
+Index : [`docs/README.md`](docs/README.md)
 
 | Document | Contenu |
 |----------|---------|
-| [`docs/guides/guide_detaille.md`](docs/guides/guide_detaille.md) | Guide pédagogique pas à pas, glossaire, préparation jury |
-| [`docs/guides/concepts_explained.md`](docs/guides/concepts_explained.md) | RDF, GNN, ego-sampling, métriques |
-| [`docs/reports/process_log.md`](docs/reports/process_log.md) | Journal de bord (QUOI / POURQUOI / COMMENT) |
-| [`docs/reports/final_report.md`](docs/reports/final_report.md) | Rapport final, réponse à la problématique |
-| [`docs/analysis/comparaison_modeles_gnn.md`](docs/analysis/comparaison_modeles_gnn.md) | GraphSAGE / GAT / HeteroGNN + convergence |
+| [`docs/pipeline_etl_entrainement_evaluation.md`](docs/pipeline_etl_entrainement_evaluation.md) | Pipeline complet + hold-out |
+| [`docs/architecture.md`](docs/architecture.md) | Scripts 01–09, modules `src/` |
+| [`docs/soutenance.md`](docs/soutenance.md) | Slides et notes orateur |
+| [`docs/reports/final_report.md`](docs/reports/final_report.md) | Rapport de synthèse |
 
 ## Arborescence
 
@@ -29,23 +36,19 @@ Index complet : [`docs/README.md`](docs/README.md)
 Project/
 ├── README.md
 ├── requirements.txt
-├── docs/                    # Documentation (guides, reports, analysis)
+├── docs/                       # Documentation (source de vérité)
+├── project_presentation/       # Slides soutenance (Marp)
 ├── notebooks/
-│   └── metrics_evaluation.ipynb
-├── scripts/                 # Pipeline CLI 01 → 06 (voir scripts/README.md)
-├── src/                     # Code métier (voir src/README.md)
-│   ├── config.py
-│   ├── pipeline/            # Échantillonnage CSV
-│   ├── rdf/                 # RDF → PyG
-│   ├── gnn/                 # Modèles homo + hetero
-│   └── evaluation/          # Métriques et convergence
-├── data/                    # Données et artefacts (voir data/README.md)
-│   ├── csv/{raw,cleaned}/
-│   ├── rdf/{ontology_schema,ontology_data}/
-│   ├── pyg/                 # Graphes PyTorch Geometric (.pt)
-│   └── results/             # Checkpoints, JSON, figures
-└── archive/                 # Travaux YNOV hors périmètre AML
-    └── baseline-anomalie-ponctuelle/
+│   ├── metrics_evaluation.ipynb
+│   └── holdout_metrics_evaluation.ipynb
+├── scripts/                    # Pipeline CLI 01 → 09
+├── app/                        # Interface Streamlit
+├── src/                        # Code métier
+├── data/
+│   ├── README.md
+│   ├── train_data/             # LI-Small — entraînement
+│   └── unknown_data/           # LI-Medium — hold-out
+└── archive/                    # Baseline tabulaire (hors périmètre AML)
 ```
 
 ## Installation
@@ -58,48 +61,45 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 ```
 
-## Pipeline
-
-### Étape 1 — Sous-échantillonnage stratifié
+## Pipeline train (LI-Small)
 
 ```powershell
-python scripts/01_sample_data.py
+python scripts/03_subgraph_sample.py --data-profile train
+python scripts/02b_build_rdf_subgraph.py --data-profile train
+python scripts/02c_enrich_rdf.py --data-profile train
+python scripts/04_build_pyg.py --data-profile train --mode hetero
+python scripts/05_train_gnn.py --data-profile train --model hetero
+python scripts/05_train_gnn.py --data-profile train --model sage
+python scripts/05_train_gnn.py --data-profile train --model gat
 ```
 
-### Étape 2 — Génération de l'A-Box RDF
-
-```powershell
-python scripts/02_build_rdf.py
-```
-
-### Pipeline GNN (défaut — multi-relationnel)
-
-```powershell
-python scripts/03_subgraph_sample.py
-python scripts/02b_build_rdf_subgraph.py
-python scripts/02c_enrich_rdf.py
-python scripts/04_build_pyg.py
-python scripts/05_train_gnn.py
-```
-
-Résultats : `data/results/gnn_hetero_best.pt`, `gnn_hetero_metrics.json`.
+Résultats : `data/train_data/results/gnn_hetero_best.pt`, `gnn_hetero_metrics.json`.
 
 ### Visualisation et convergence
 
 ```powershell
-pip install matplotlib seaborn
 jupyter notebook notebooks/metrics_evaluation.ipynb
 python scripts/06_compare_convergence.py --epochs 40 --retrain
 ```
 
-Détails RDF : [`docs/guides/concepts_explained.md`](docs/guides/concepts_explained.md).
-
-### Pipeline homogène (legacy — comparaison)
+## Pipeline hold-out (LI-Medium)
 
 ```powershell
-python scripts/04_build_pyg.py --mode homo
-python scripts/05_train_gnn.py --model sage
+python scripts/08_run_unknown_holdout_pipeline.py --skip-subgraph
+python scripts/09_visualize_holdout.py
 ```
+
+Résultats : `data/unknown_data/results/eval_holdout_metrics.json`, `holdout_*.png`.
+
+## Application Streamlit (démo HeteroGNN)
+
+Interface pour scorer le graphe, afficher PR-AUC / recall / precision / F1, courbes PR et tableau des transactions.
+
+```powershell
+streamlit run app/streamlit_app.py
+```
+
+Voir [`app/README.md`](app/README.md).
 
 ## Modèle de graphe (T-Box)
 
@@ -109,9 +109,9 @@ python scripts/05_train_gnn.py --model sage
     +-------------------- hosted_by --------------------> (Bank)
 ```
 
-Schéma : `data/rdf/ontology_schema/aml.ttl`
+Schéma : `data/train_data/rdf/ontology_schema/aml.ttl`
 
 ## Statut
 
-Étapes 0 à 6 terminées.  
+Étapes 0 à 6 + **test final hold-out** (LI-Medium, 02/06/2026) terminés.  
 → Synthèse : [`docs/reports/final_report.md`](docs/reports/final_report.md)

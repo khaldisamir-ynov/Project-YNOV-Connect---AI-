@@ -7,7 +7,7 @@
 
 > Document de synthèse comparant **GraphSAGE**, **GAT** et **HeteroGNN**.
 > Pour l’analyse **epoch par epoch** (convergence), voir la section 6 et
-> `data/results/convergence_sage_vs_hetero.*`.
+> `data/train_data/results/convergence_sage_vs_hetero.*`.
 
 ---
 
@@ -31,7 +31,7 @@
 | Aspect | Détail |
 |---|---|
 | **Graphe** | `Data` PyG — nœuds = comptes, arêtes = transactions (aplati) |
-| **Fichier** | `data/pyg/aml_graph.pt` |
+| **Fichier** | `data/train_data/pyg/aml_graph.pt` |
 | **Idée** | Agrège les voisins de façon uniforme ; toutes les arêtes ont le **même poids** |
 | **Tâche** | Classification d’**arêtes** (`is_laundering` sur chaque transaction) |
 | **Module** | `src/gnn/homo/models.py` — `EdgeClassifierGNN` |
@@ -55,7 +55,7 @@ Compte_A ──(transaction)──▶ Compte_B
 | Aspect | Détail |
 |---|---|
 | **Graphe** | `HeteroData` — nœuds account / transaction / bank |
-| **Fichier** | `data/pyg/aml_hetero_graph.pt` |
+| **Fichier** | `data/train_data/pyg/aml_hetero_graph.pt` |
 | **Source** | RDF enrichi (`aml_data_subgraph_enriched.ttl`) |
 | **Idée** | **HeteroConv** : transformation **distincte par prédicat RDF** |
 | **Tâche** | Classification de nœuds **transaction** |
@@ -273,14 +273,14 @@ python scripts/06_compare_convergence.py --epochs 40 --retrain
 
 | Fichier | Contenu |
 |---|---|
-| `data/results/convergence_sage_vs_hetero.json` | Métriques par epoch + analyse |
-| `data/results/convergence_sage_vs_hetero.png` | Courbes superposées |
-| `data/results/convergence_gap_sage_vs_hetero.png` | Écarts Δ par epoch |
+| `data/train_data/results/convergence_sage_vs_hetero.json` | Métriques par epoch + analyse |
+| `data/train_data/results/convergence_sage_vs_hetero.png` | Courbes superposées |
+| `data/train_data/results/convergence_gap_sage_vs_hetero.png` | Écarts Δ par epoch |
 
 ### Résultats de l’étude de convergence (40 epochs, sans early stopping)
 
 **Exécution** : `python scripts/06_compare_convergence.py --epochs 40 --retrain`  
-**Fichiers** : `data/results/convergence_sage_vs_hetero.json`, `.png`, `_gap_.png`
+**Fichiers** : `data/train_data/results/convergence_sage_vs_hetero.json`, `.png`, `_gap_.png`
 
 #### Synthèse automatique
 
@@ -332,49 +332,47 @@ de convergence**, pas en score final absolu une fois SAGE pleinement entraîné.
 
 #### Graphiques générés
 
-![Convergence superposée](../data/results/convergence_sage_vs_hetero.png)
+![Convergence superposée](../data/train_data/results/convergence_sage_vs_hetero.png)
 
-![Écarts par epoch](../data/results/convergence_gap_sage_vs_hetero.png)
+![Écarts par epoch](../data/train_data/results/convergence_gap_sage_vs_hetero.png)
 
-*(Les images sont dans `data/results/` — ouvrir localement si l’aperçu Markdown ne s’affiche pas.)*
+*(Les images sont dans `data/train_data/results/` — ouvrir localement si l’aperçu Markdown ne s’affiche pas.)*
 
 ---
 
 ## 7. Recommandations pour la soutenance
 
-### Message clé
+### Message clé (train + hold-out)
 
-> « Nous comparons trois GNN sur le même sous-graphe AML. GraphSAGE et HeteroGNN
-> atteignent un PR-AUC ~0,25 (~14× le hasard). Le HeteroGNN améliore le recall
-> (+2 pts) et converge plus vite, au prix d’une complexité RDF multi-relationnelle.
-> Le GAT homogène n’est pas adapté à ce graphe sparse. »
+> « Sur LI-Small (test interne), GraphSAGE et HeteroGNN atteignent PR-AUC ~0,25 (~14× le hasard), avec recall ~95 % mais precision ~6 %. Sur **LI-Medium hold-out** (corpus jamais vu), **seul le HeteroGNN** reste équilibré : PR-AUC **0,59**, F1 **0,61**, precision **54 %** — les GNN homogènes sur-alertent (precision ~12 %). Le multi-relationnel RDF enrichi **généralise** ; le tabulaire reste complémentaire pour l’anomalie ponctuelle. »
+
+Fiche courte N+1 (écarts + RDF par modèle) : [`oral_nplus1_gnn_rdf.md`](oral_nplus1_gnn_rdf.md).
 
 ### Slides suggérées
 
-1. Tableau section 3 (3 modèles × 4 métriques).
+1. Tableau section 3 (train) + section 2c (hold-out).
 2. Schéma architecture HeteroGNN (section 1).
-3. Graphique `convergence_sage_vs_hetero.png`.
-4. Graphique `convergence_gap_sage_vs_hetero.png`.
-5. Formulation : complémentarité avec le Random Forest tabulaire (projet antérieur).
+3. `data/train_data/results/convergence_sage_vs_hetero.png`
+4. `data/unknown_data/results/holdout_train_vs_holdout_pr_auc.png`
+5. Complémentarité Random Forest (projet antérieur, `archive/`).
 
 ---
 
 ## 8. Reproduction
 
 ```powershell
-# Graphes
-python scripts/04_build_pyg.py --mode homo
-python scripts/02c_enrich_rdf.py
-python scripts/04_build_pyg.py --mode hetero
-
-# Entraînement
-python scripts/05_train_gnn.py --model sage --epochs 80
-python scripts/05_train_gnn.py --model hetero --epochs 30
-python scripts/05_train_gnn.py --model gat
-
-# Comparaison + convergence
+python scripts/03_subgraph_sample.py --data-profile train
+python scripts/02b_build_rdf_subgraph.py --data-profile train
+python scripts/02c_enrich_rdf.py --data-profile train
+python scripts/04_build_pyg.py --data-profile train --mode hetero
+python scripts/04_build_pyg.py --data-profile train --mode homo
+python scripts/05_train_gnn.py --data-profile train --model hetero
+python scripts/05_train_gnn.py --data-profile train --model sage
+python scripts/05_train_gnn.py --data-profile train --model gat
 jupyter notebook notebooks/metrics_evaluation.ipynb
 python scripts/06_compare_convergence.py --epochs 40 --retrain
+python scripts/08_run_unknown_holdout_pipeline.py --skip-subgraph
+python scripts/09_visualize_holdout.py
 ```
 
 ---
@@ -387,7 +385,7 @@ python scripts/06_compare_convergence.py --epochs 40 --retrain
 | [`docs/guides/guide_detaille.md`](../guides/guide_detaille.md) | Guide pédagogique complet |
 | [`docs/reports/final_report.md`](../reports/final_report.md) | Rapport de synthèse |
 | [`notebooks/metrics_evaluation.ipynb`](../../notebooks/metrics_evaluation.ipynb) | Graphiques interactifs (`src/evaluation/`) |
-| `data/results/convergence_sage_vs_hetero.json` | Données convergence |
+| `data/train_data/results/convergence_sage_vs_hetero.json` | Données convergence |
 
 ---
 

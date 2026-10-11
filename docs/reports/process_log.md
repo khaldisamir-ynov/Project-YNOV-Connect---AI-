@@ -57,10 +57,10 @@ supervisé basées sur des données tabulaires ?
 
 | # | Étape | Statut | Date | Livrable principal |
 |---|-------|--------|------|--------------------|
-| 0 | Cadrage et schéma de donnée (T-Box) | ✅ Fait | 29/05/2026 | `data/rdf/ontology_schema/aml.ttl` |
+| 0 | Cadrage et schéma de donnée (T-Box) | ✅ Fait | 29/05/2026 | `data/train_data/rdf/ontology_schema/aml.ttl` (T-Box unique) |
 | 1 | Structure projet + dépendances | ✅ Fait | 01/06/2026 | `src/`, `scripts/`, `requirements.txt` |
-| 2a | Sous-échantillonnage stratifié | ✅ Fait | 01/06/2026 | `data/csv/cleaned/LI-Small_Trans_sample.csv` |
-| 2b | Génération A-Box RDF | ✅ Fait | 01/06/2026 | `data/rdf/ontology_data/aml_data.ttl` |
+| 2a | Sous-échantillonnage stratifié | ✅ Fait | 01/06/2026 | `data/train_data/csv/cleaned/LI-Small_Trans_sample.csv` |
+| 2b | Génération A-Box RDF | ✅ Fait | 01/06/2026 | `data/train_data/rdf/ontology_data/aml_data.ttl` |
 | 3 | Approche "ponctuelle" (tabulaire) | ♻️ **Réutilisée** (projet ML antérieur) | 19/02/2026 | `archive/baseline-anomalie-ponctuelle/.../Activite_10.ipynb` |
 | 4a | Échantillonnage par sous-graphe ego — train (LI-Small) | ✅ Fait | 01/06/2026 | `data/train_data/csv/cleaned/LI-Small_Trans_subgraph.csv` |
 | 4a-hold | Sous-graphe ego — hold-out (LI-Medium) | ✅ Fait | 02/06/2026 | `data/unknown_data/csv/cleaned/LI-Medium_Trans_subgraph.csv` |
@@ -68,12 +68,12 @@ supervisé basées sur des données tabulaires ?
 | 4c-hold | PyG hetero + homo hold-out (`--holdout-eval`) | ✅ Fait | 02/06/2026 | `data/unknown_data/pyg/aml_hetero_graph.pt`, `aml_graph.pt` |
 | 5-hold | Test final inférence (3 GNN) | ✅ Fait | 02/06/2026 | `data/unknown_data/results/eval_holdout_metrics.json` |
 | 5-hold-viz | Visualisations hold-out (phase E) | ✅ Fait | 02/06/2026 | `data/unknown_data/results/holdout_*.png`, `09_visualize_holdout.py` |
-| 4b | Inférence RDF (A-Box enrichie) | ✅ Fait | 01/06/2026 | `aml_data_subgraph_enriched.ttl` |
-| 4c | Conversion RDF → HeteroData PyG | ✅ Fait | 01/06/2026 | `data/pyg/aml_hetero_graph.pt` |
-| 4b-legacy | Conversion RDF → PyG homogène | ✅ Fait | 01/06/2026 | `data/pyg/aml_graph.pt` |
-| 5 | Entraînement HeteroGNN multi-relationnel | ✅ Fait | 01/06/2026 | `data/results/gnn_hetero_best.pt` |
+| 4b | Inférence RDF (A-Box enrichie) | ✅ Fait | 01/06/2026 | `data/train_data/rdf/ontology_data/aml_data_subgraph_enriched.ttl` |
+| 4c | Conversion RDF → HeteroData PyG | ✅ Fait | 01/06/2026 | `data/train_data/pyg/aml_hetero_graph.pt` |
+| 4b-legacy | Conversion RDF → PyG homogène | ✅ Fait | 01/06/2026 | `data/train_data/pyg/aml_graph.pt` |
+| 5 | Entraînement HeteroGNN multi-relationnel | ✅ Fait | 01/06/2026 | `data/train_data/results/gnn_hetero_best.pt` |
 | 6 | Comparaison conceptuelle + rapport final | ✅ Fait | 01/06/2026 | `docs/reports/final_report.md` |
-| 6b | Étude convergence SAGE vs Hetero (epoch par epoch) | ✅ Fait | 01/06/2026 | `scripts/06_compare_convergence.py` → `data/results/convergence_*` |
+| 6b | Étude convergence SAGE vs Hetero (epoch par epoch) | ✅ Fait | 01/06/2026 | `scripts/06_compare_convergence.py` → `data/train_data/results/convergence_*` |
 
 ---
 
@@ -94,6 +94,8 @@ pourquoi, et comment le relancer ?*
 | **4c** | HeteroData `aml_hetero_graph.pt` | Graphe **multi-relationnel** fidèle à la T-Box | `python scripts/04_build_pyg.py` |
 | **5** | HeteroGNN entraîné | **Poids distincts par prédicat RDF** (HeteroConv) | `python scripts/05_train_gnn.py` |
 | **6** | Rapport final | Répondre à la problématique ; synthèse pour soutenance | `docs/reports/final_report.md` (lecture) |
+| **5-hold** | Test final LI-Medium | Généralisation sans ré-entraînement | `07_eval_holdout.py` → `unknown_data/results/` |
+| **5-hold-viz** | Figures hold-out | Équivalent phase E train | `09_visualize_holdout.py` |
 
 ### Pipeline complet (dans l'ordre)
 
@@ -102,16 +104,20 @@ pourquoi, et comment le relancer ?*
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 
-# Exécution (pipeline GNN — défaut)
-python scripts/03_subgraph_sample.py
-python scripts/02b_build_rdf_subgraph.py
-python scripts/02c_enrich_rdf.py          # inférence RDF
-python scripts/04_build_pyg.py              # HeteroData (défaut)
-python scripts/05_train_gnn.py              # HeteroGNN (défaut)
+# Train (LI-Small)
+python scripts/03_subgraph_sample.py --data-profile train
+python scripts/02b_build_rdf_subgraph.py --data-profile train
+python scripts/02c_enrich_rdf.py --data-profile train
+python scripts/04_build_pyg.py --data-profile train --mode hetero
+python scripts/05_train_gnn.py --data-profile train --model hetero
+
+# Hold-out (LI-Medium)
+python scripts/08_run_unknown_holdout_pipeline.py --skip-subgraph
+python scripts/09_visualize_holdout.py
 
 # Legacy homogène (comparaison)
-python scripts/04_build_pyg.py --mode homo
-python scripts/05_train_gnn.py --model sage
+python scripts/04_build_pyg.py --data-profile train --mode homo
+python scripts/05_train_gnn.py --data-profile train --model sage
 ```
 
 > **Pipeline RDF complet** : A-Box → inférence → HeteroData → HeteroGNN.
@@ -121,11 +127,14 @@ python scripts/05_train_gnn.py --model sage
 
 | Besoin | Document |
 |---|---|
-| **Guide pas à pas avec glossaire (soutenance)** | **`docs/guides/guide_detaille.md`** |
-| Suivi chronologique, décisions, chiffres | `docs/reports/process_log.md` (ce fichier) |
-| Comprendre RDF, GNN, ego-sampling, métriques | `docs/guides/concepts_explained.md` |
-| **Synthèse finale, réponse à la problématique** | **`docs/reports/final_report.md`** |
-| Lancer les scripts rapidement | `README.md` |
+| **Pipeline + hold-out (référence)** | **`docs/pipeline_etl_entrainement_evaluation.md`** |
+| Scripts 01–09, modules `src/` | `docs/architecture.md` |
+| Slides et notes orateur | `docs/soutenance.md` → `project_presentation/` |
+| Guide pas à pas + glossaire | `docs/guides/guide_detaille.md` |
+| Suivi chronologique | `docs/reports/process_log.md` (ce fichier) |
+| Concepts RDF / GNN | `docs/guides/concepts_explained.md` |
+| Synthèse problématique | `docs/reports/final_report.md` |
+| Arborescence données | `data/README.md` |
 
 ---
 
@@ -142,7 +151,7 @@ ontologie OWL/RDF — la **T-Box** (Terminological Box).
 
 ### Ce qui a été fait
 
-Rédaction de `data/rdf/ontology_schema/aml.ttl` qui définit :
+Rédaction de `data/train_data/rdf/ontology_schema/aml.ttl` qui définit :
 
 - **Classes** (types de nœuds) : `Account`, `Bank`, `Transaction`.
 - **Object Properties** (relations / arêtes du graphe) avec leurs *domain*
@@ -246,7 +255,7 @@ minoritaire** (les transactions de blanchiment).
    compléter à 100 000 lignes.
 5. Re-tri chronologique sur `timestamp` (utile pour les analyses
    temporelles futures).
-6. Écriture dans `data/csv/cleaned/LI-Small_Trans_sample.csv`.
+6. Écriture dans `data/train_data/csv/cleaned/LI-Small_Trans_sample.csv`.
 
 ### Résultat
 
@@ -307,7 +316,7 @@ Box) **strictement conforme** à la T-Box `aml.ttl` rédigée à l'étape 0.
      et `Transaction --deposits_to--> Account`.
    - Ajout des **5 attributs typés** sur la transaction (`amountPaid`,
      `paymentCurrency`, `paymentFormat`, `timestamp`, `isLaundering`).
-3. Sérialisation en Turtle dans `data/rdf/ontology_data/aml_data.ttl`.
+3. Sérialisation en Turtle dans `data/train_data/rdf/ontology_data/aml_data.ttl`.
 
 ### Résultat
 
@@ -605,7 +614,7 @@ Règles matérialisées :
 - 3 types de nœuds : account, transaction, bank
 - 10 types d'arêtes (5 prédicats × 2 directions)
 - Features extraites dynamiquement depuis la T-Box
-- Livrable : `data/pyg/aml_hetero_graph.pt`
+- Livrable : `data/train_data/pyg/aml_hetero_graph.pt`
 
 ### Étape 5 — HeteroGNN (HeteroConv)
 
@@ -667,7 +676,7 @@ Data(
 )
 ```
 
-- Fichier produit : `data/pyg/aml_graph.pt` (~21 Mo)
+- Fichier produit : `data/train_data/pyg/aml_graph.pt` (~21 Mo)
 - Sanity check : rechargement et inspection → cohérent.
 - Métadonnées des features stockées dans `FeatureInfo` pour interprétation
   ultérieure.
@@ -773,10 +782,10 @@ Le GraphSAGE fait **~14× mieux** qu'un classificateur aléatoire.
 
 | Fichier | Contenu |
 |---|---|
-| `data/results/gnn_sage_best.pt` | Checkpoint GraphSAGE (meilleur epoch) |
-| `data/results/gnn_sage_metrics.json` | Métriques train/val/test |
-| `data/results/gnn_gat_best.pt` | Checkpoint GAT (run de comparaison) |
-| `data/results/gnn_gat_metrics.json` | Métriques GAT |
+| `data/train_data/results/gnn_sage_best.pt` | Checkpoint GraphSAGE (meilleur epoch) |
+| `data/train_data/results/gnn_sage_metrics.json` | Métriques train/val/test |
+| `data/train_data/results/gnn_gat_best.pt` | Checkpoint GAT (run de comparaison) |
+| `data/train_data/results/gnn_gat_metrics.json` | Métriques GAT |
 
 ### Décisions prises
 
@@ -832,4 +841,4 @@ inter-datasets.
 
 ---
 
-*Dernière mise à jour : 01/06/2026 — **projet terminé** (étapes 0 à 6).*
+*Dernière mise à jour : 02/06/2026 — étapes 0 à 6 + hold-out LI-Medium (5-hold, 5-hold-viz) terminés. Chemins : `data/train_data/`, `data/unknown_data/`.*

@@ -256,7 +256,7 @@ des portes, des couloirs » — sans dire où se trouve l'immeuble rue de Rivoli
 | `amountPaid` | Montant de la transaction | Attribut numérique |
 | `isLaundering` | Label fraude (0 ou 1) | Attribut entier (cible du modèle) |
 
-**Fichier** : `data/rdf/ontology_schema/aml.ttl`
+**Fichier** : `data/train_data/rdf/ontology_schema/aml.ttl`
 
 ---
 
@@ -288,7 +288,7 @@ On part des comptes impliqués dans des **fraudes connues**, on inclut leurs
 | Comptes degré 1 | ~70 % | **36 %** |
 | Fraudes conservées | 3 565 | 3 565 (100 %) |
 
-**Fichier produit** : `data/csv/cleaned/LI-Small_Trans_subgraph.csv`
+**Fichier produit** : `data/train_data/csv/cleaned/LI-Small_Trans_subgraph.csv`
 
 ---
 
@@ -324,7 +324,7 @@ inst:tx-42             aml:isLaundering   "1"^^xsd:integer .
 - On peut **interroger** le graphe en SPARQL (langage de requête sur RDF).
 - C'est la **source de vérité** pour tout le pipeline aval.
 
-**Fichier produit** : `data/rdf/ontology_data/aml_data_subgraph.ttl`  
+**Fichier produit** : `data/train_data/rdf/ontology_data/aml_data_subgraph.ttl`  
 (~80 Mo, ~1,97 million de triplets)
 
 ---
@@ -374,7 +374,7 @@ Le modèle reçoit un graphe **pré-enrichi**. Il n'a pas besoin de « deviner �
 via plusieurs sauts qu deux comptes sont liés — la relation est **matérialisée**
 directement.
 
-**Fichier produit** : `data/rdf/ontology_data/aml_data_subgraph_enriched.ttl`  
+**Fichier produit** : `data/train_data/rdf/ontology_data/aml_data_subgraph_enriched.ttl`  
 (~90 Mo, ~2,2 millions de triplets, +224 744 triplets inférés)
 
 **Option avancée** : `python scripts/02c_enrich_rdf.py --owlrl` active
@@ -418,7 +418,7 @@ automatiquement les attributs déclarés (`amountPaid`, `paymentCurrency`, etc.)
 Si demain vous ajoutez `bankCountry` dans l'ontologie, il suffit de regénérer
 le graphe — pas de refonte du code CSV.
 
-**Fichier produit** : `data/pyg/aml_hetero_graph.pt`
+**Fichier produit** : `data/train_data/pyg/aml_hetero_graph.pt`
 
 ---
 
@@ -456,8 +456,8 @@ suspects que d'autres.
 (classification binaire : fraude ou non).
 
 **Fichiers produits** :
-- `data/results/gnn_hetero_best.pt` — poids du meilleur modèle
-- `data/results/gnn_hetero_metrics.json` — métriques train/val/test
+- `data/train_data/results/gnn_hetero_best.pt` — poids du meilleur modèle
+- `data/train_data/results/gnn_hetero_metrics.json` — métriques train/val/test
 
 ---
 
@@ -622,10 +622,10 @@ le **recall** (détecter un maximum de fraudes).
 - En production, on **ajusterait le seuil** (pas forcément 0,5) via la courbe
   Precision-Recall pour équilibrer selon le coût métier.
 
-**Comparaison HeteroGNN vs GraphSAGE**  
-Les métriques sont **quasi identiques**. L'apport du HeteroGNN n'est pas
-un gain de score immédiat, mais une **architecture sémantiquement plus riche**
-et **défendable devant un jury** (multi-relationnel + inférence + extensibilité).
+**Comparaison HeteroGNN vs GraphSAGE (train)**  
+Sur le test LI-Small, métriques **quasi identiques**. Sur le **hold-out LI-Medium**,
+le HeteroGNN domine (PR-AUC 0,59 vs 0,23 pour SAGE). L'apport se voit surtout en
+**généralisation** et en sémantique RDF (multi-relationnel + inférence).
 
 ---
 
@@ -669,19 +669,15 @@ et **défendable devant un jury** (multi-relationnel + inférence + extensibilit
 
 ### Pitch de 2 minutes
 
-> « Notre projet démontre que la détection de fraude financière ne se résume
-> pas à analyser des lignes CSV. Certaines fraudes — le blanchiment organisé —
-> vivent dans la **structure du réseau** : cycles, comptes relais, fractionnement.
+> « Notre projet montre que certaines fraudes AML vivent dans la **structure**
+> du réseau, pas dans une ligne CSV isolée. Nous modélisons 200 000 transactions
+> en **RDF**, enrichissons le graphe par inférence (`transactedWith`, `sameBankAs`),
+> puis entraînons un **HeteroGNN** (un poids par type de relation).
 >
-> Nous avons modélisé un réseau de 200 000 transactions IBM AML en **RDF** —
-> un standard du Web Sémantique — puis enrichi ce graphe par **inférence**
-> (relations `transactedWith`, `sameBankAs`).
->
-> Un **GNN hétérogène** (HeteroConv) apprend ensuite avec un **poids distinct
-> par type de relation**, ce qui préserve la sémantique du modèle RDF.
->
-> Résultat : PR-AUC 0,25, recall 95 % — signal réel de détection, complémentaire
-> de l'approche tabulaire (Random Forest) déjà validée sur un autre dataset. »
+> Sur LI-Small : PR-AUC 0,25, recall 95 % — signal réel mais beaucoup de fausses alertes.
+> Sur **LI-Medium hold-out** (jamais vu à l'entraînement) : Hetero PR-AUC **0,59**,
+> precision **54 %** — les GNN homogènes sur-alertent. Le multi-relationnel **généralise** ;
+> le tabulaire (projet antérieur) reste complémentaire pour l'anomalie ponctuelle. »
 
 ### Questions fréquentes du jury — réponses préparées
 
@@ -690,11 +686,11 @@ R : Le RDF est la **source canonique** amont. Il formalise la topologie,
 permet l'inférence et l'extensibilité. PyG n'est qu'un **format d'exécution**
 pour le modèle — comme un compilateur transforme du code source en binaire.
 
-**Q : Pourquoi les métriques ne sont pas meilleures avec le HeteroGNN ?**  
-R : Le graphe reste partiellement fragmenté (36 % de comptes isolés), les
-features temporelles ne sont pas encore parsées, et le dataset est très
-déséquilibré. L'apport du HeteroGNN est **architectural et sémantique**,
-pas uniquement un gain de score immédiat.
+**Q : Pourquoi les métriques train semblent faibles (precision ~6 %) ?**  
+R : Classes très déséquilibrées et seuil 0,5 agressif (recall prioritaire).
+Sur **hold-out Medium**, le Hetero atteint precision 54 % et PR-AUC 0,59.
+L'apport du HeteroGNN est **architectural** (RDF multi-rel.) et **généralisation**
+hors corpus d'entraînement, pas seulement le score sur Small.
 
 **Q : Quelle différence avec le Random Forest du projet ML antérieur ?**  
 R : Le RF analyse chaque transaction **indépendamment**. Il ne voit pas les
@@ -866,8 +862,11 @@ python scripts/06_compare_convergence.py --epochs 40 --retrain
 | [`docs/guides/concepts_explained.md`](concepts_explained.md) | Référence conceptuelle (RDF, GNN, métriques…) |
 | [`docs/reports/final_report.md`](../reports/final_report.md) | Rapport de synthèse pour la soutenance |
 | [`docs/reports/process_log.md`](../reports/process_log.md) | Journal chronologique des décisions et chiffres |
-| [`docs/analysis/comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison modèles + convergence + hold-out §2c |
-| [`docs/pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md) | Pipeline complet + résultats test final |
+| [`comparaison_modeles_gnn.md`](../analysis/comparaison_modeles_gnn.md) | Comparaison modèles + hold-out §2c |
+| [`pipeline_etl_entrainement_evaluation.md`](../pipeline_etl_entrainement_evaluation.md) | Pipeline complet + test final |
+| [`architecture.md`](../architecture.md) | Scripts 01–09 |
+| [`soutenance.md`](../soutenance.md) | Slides Marp + notes |
+| [`data/README.md`](../../data/README.md) | Profils train / unknown |
 | [`README.md`](../../README.md) | Guide rapide d'exécution |
 
 ---

@@ -163,7 +163,7 @@ jupyter notebook notebooks/holdout_metrics_evaluation.ipynb
 
 ## Pipeline hold-out — nouveau dataset (LI-Medium)
 
-**Principe** : même ETL et mêmes hyperparamètres d’échantillonnage, **aucun ré-entraînement** sur Medium. Les checkpoints de `train_data/results/` sont appliqués tels quels.
+**Principe** : même ETL et mêmes hyperparamètres d’échantillonnage, **aucun ré-entraînement** sur Medium. Les checkpoints de `data/train_data/results/` sont appliqués tels quels.
 
 ### Définition du dataset « inconnu »
 
@@ -297,13 +297,17 @@ jupyter notebook notebooks/metrics_evaluation.ipynb
 
 | Document | Contenu |
 |----------|---------|
-| [`reports/process_log.md`](reports/process_log.md) | Journal détaillé QUOI / POURQUOI / COMMENT |
+| [`README.md`](README.md) | Index documentation |
+| [`architecture.md`](architecture.md) | Scripts 01–09, modules `src/` |
+| [`soutenance.md`](soutenance.md) | Slides + notes orateur |
+| [`reports/process_log.md`](reports/process_log.md) | Journal QUOI / POURQUOI / COMMENT |
 | [`guides/concepts_explained.md`](guides/concepts_explained.md) | Ego-sampling, RDF, GNN, métriques |
-| [`guides/guide_detaille.md`](guides/guide_detaille.md) | Guide pas à pas soutenance |
+| [`guides/guide_detaille.md`](guides/guide_detaille.md) | Guide pas à pas + glossaire |
 | [`analysis/comparaison_modeles_gnn.md`](analysis/comparaison_modeles_gnn.md) | Comparaison SAGE / GAT / Hetero |
+| [`data/README.md`](../data/README.md) | Profils `train_data` / `unknown_data` |
 | [`data/train_data/README.md`](../data/train_data/README.md) | Fichiers train |
-| [`data/unknown_data/README.md`](../data/unknown_data/README.md) | Fichiers hold-out + chiffres ego |
-| [`notebooks/holdout_metrics_evaluation.ipynb`](../notebooks/holdout_metrics_evaluation.ipynb) | Visualisations interactives hold-out |
+| [`data/unknown_data/README.md`](../data/unknown_data/README.md) | Hold-out + figures |
+| [`notebooks/holdout_metrics_evaluation.ipynb`](../notebooks/holdout_metrics_evaluation.ipynb) | Visualisations hold-out |
 
 ---
 
